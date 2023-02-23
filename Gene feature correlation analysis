@@ -1,0 +1,50 @@
+#### COVID vs CTL Coexpression Analysis ####
+library(dplyr)
+library(openxlsx)
+
+  # Merge gene module GSVA Scores across datasets
+GSE161731_COVID <- read.xlsx()
+PRJNA777938_COVID <- read.xlsx()
+GSE172114_COVID <- read.xlsx()
+combo <- merge(GSE161731_COVID, PRJNA777938_COVID, by="geneSymbol")
+combo <- combo[,]
+colnames(combo)[] <- "Gene_Module"
+combo_3dataset <- merge(combo, GSE172114_COVID, by="geneSymbol")
+combo_3dataset <- combo_3dataset[,]
+colnames(combo_3dataset)[] <- "Gene_Module"
+combo_3dataset_unique <- combo_3dataset %>% distinct(geneSymbol, Gene_Module, .keep_all=TRUE)
+combo <- combo_3dataset_unique
+
+
+#####Coexpression Analysis#######
+corr_genes_df <- combo
+corr_genes_df <- corr_genes_df %>%
+  group_by(Category)
+lists <- group_split(corr_genes_df)
+
+######Keep only the dataframes with more than one row.Minimum two genes are required for corrleation anlysis######
+shouldKeep <- sapply(lists, function(df)nrow(df)>1)
+lists.trim <- lists[shouldKeep]
+category_names <- tapply(corr_genes_df$geneSymbol,corr_genes_df$Gene_Module,c)
+Keepnames <- sapply(category_names,function(x)length(x)>1)
+category_names_trim <- category_names[Keepnames]
+names(lists.trim) <- names(category_names_trim)
+
+########Correlation Plots#######
+pdf(file="Corrplots.pdf",height = 14,width = 16)
+par(mfrow = c(2, 2)) ####Change this according to the number of correlation matrices you have
+wb <- createWorkbook() ###create an empty workbook to save the results
+for(i in 1:length(lists.trim)){
+  n <- as.vector(lists.trim[[i]][[1]])
+  df1 <- as.data.frame(t((sapply(lists.trim[[i]],as.numeric))))
+  df1 <- df1[-which(rownames(df1) %in% c("geneSymbol","Gene_Module")),]
+  colnames(df1) <- n
+  library(corrplot)
+  test <- cor(df1,method="pearson")
+  corrplot(test,tl.cex = .70, tl.col = "black",col=colorRampPalette(c("blue","white","red"))(200),title = names(lists.trim[i]),
+           mar=c(0,0,5,0),tl.offset = 1)
+  addWorksheet(wb,sheetName=names(lists.trim[i]))
+  writeData(wb,names(lists.trim[i]),test)
+}
+dev.off()
+saveWorkbook(wb,file="")
