@@ -1,0 +1,15 @@
+#### SHAP Feature Importance Calculation ####
+
+### Import ML Model Weights
+rf_model = pickle.load(open('trained_model_weights/_RF.sav','rb'))
+
+preds_t = rf_model.predict(X_val_sm)
+cnf_matrix_t = confusion_matrix(y_val_sm, preds)
+
+import shap
+shap.initjs()
+explainer = shap.TreeExplainer(rf_model)
+# obtain shap values for the first row of the test data
+shap_values = explainer.shap_values(X_val_sm)
+
+shap.summary_plot(shap_values[1], X_val_sm.astype("float"),feature_names = feature_names,max_display=36,show=False)
