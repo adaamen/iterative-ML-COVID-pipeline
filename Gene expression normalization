@@ -1,0 +1,39 @@
+#### COVID vs CTL z-Score Normalization ####
+
+library(openxlsx)
+library(ggplot2)
+library(tidyverse)
+
+top10 <- read.csv("", row.names = 1)
+GSE172114_log2 <- read.csv("log2.csv", row.names = 1)
+combo <- merge(top10, GSE172114_log2, by = 0)
+rownames(combo) <- combo[,1]
+combo <- combo[,-1]
+
+GSE161731_log2 <- read.csv("", row.names = 1)
+combo2 <- merge(combo, GSE161731_log2, by = 0)
+rownames(combo2) <- combo2[,1]
+combo2 <- combo2[,-1]
+
+PRJNA777938_log2 <- read.csv("", row.names = 1)
+combo3 <- merge(combo2, PRJNA777938_log2, by = 0)
+rownames(combo3) <- combo3[,1]
+combo3 <- combo3[,-1]
+
+#Read in log2 expression values for genes in top 10 modules 
+#Do separate z-scaling for each dataset and merge
+top10genes <- read.csv("./ML-COVID vs CTl/COVID_CTL_GSVA_ML_Top10Module_Gene_log2.csv", row.names=1)
+
+top10genes_GSE172114 <- top10genes[,]
+top10genes_GSE172114_z <- scale(top10genes_GSE172114, center = TRUE, scale = TRUE)
+top10genes_GSE161731 <- top10genes[,]
+top10genes_GSE161731_z <- scale(top10genes_GSE161731, center = TRUE, scale = TRUE)
+top10genes_PRJNA777938 <- top10genes[,]
+top10genes_PRJNA777938_z <- scale(top10genes_PRJNA777938, center = TRUE, scale = TRUE)
+top10genes_z <- merge(top10genes_GSE172114_z, top10genes_GSE161731_z, by=0)
+rownames(top10genes_z) <- top10genes_z[,1]
+top10genes_z <- top10genes_z[,-1]
+top10genes_z2 <- merge(top10genes_z, top10genes_PRJNA777938_z, by=0)
+rownames(top10genes_z2) <- top10genes_z2[,1]
+top10genes_z2 <- top10genes_z2[,-1]
+write.csv(top10genes_z2,"")
