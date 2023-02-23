@@ -1,0 +1,244 @@
+#### Load the necessary modules###
+import pandas as pd
+import numpy as np
+import pickle
+import matplotlib
+from matplotlib import pyplot
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set(style='whitegrid', rc={'axes.grid': False})
+from itertools import cycle
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn import svm
+from sklearn.svm import LinearSVC
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn import model_selection
+from sklearn.model_selection import train_test_split
+from collections import Counter
+from sklearn.model_selection import cross_val_score
+from sklearn import metrics
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, classification_report 
+from sklearn.metrics import cohen_kappa_score
+from sklearn.metrics import confusion_matrix
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+from io import BytesIO
+
+
+#Read in ML input 
+    #samples as rows with last column as cohort for classification
+    #columns as features (i.e. GSVA scores or log2 expression values)
+df = pd.read_excel(COVID_Healthy_ML_Input.xlsx')
+
+#Set cohorts as binary classifiers
+df['cohort']=df['cohort'].map({'COVID':1,'Healthy':0})
+
+#Set up ML variables: x is df with feature values; y is cohort for classification
+X = df.drop(['cohort'],axis=1)
+y = df.cohort
+
+
+##### Oversampling Correction with SMOTE ######
+from sklearn.datasets import make_classification
+from collections import Counter
+from matplotlib import pyplot
+from numpy import where
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.pipeline import Pipeline
+
+#Random oversample with SMOTE
+oversample = SMOTE()
+X_sm, y_sm = oversample.fit_resample(X, y)
+
+# Split into Train and Validation sets 
+X_train_sm, X_val_sm, y_train_sm, y_val_sm = train_test_split(X_sm, y_sm, test_size = 0.3, shuffle=True,random_state = 0)
+
+
+
+### Run ML Models and save Model Training Weights for Training Set
+
+# roc curve for tpr = fpr
+seed = 0
+random_probs = [0 for i in range(len(y_val_sm))]
+p_fpr, p_tpr, _ = roc_curve(y_val_sm, random_probs, pos_label=1)
+
+# Prepare models
+models = []
+models.append(('LR', LogisticRegression(random_state=seed)))
+models.append(('RF', RandomForestClassifier(random_state=seed)))
+models.append(("SVM", svm.SVC(probability=True,random_state=seed)))
+models.append(('DTREE', DecisionTreeClassifier(random_state=seed)))
+models.append(('ADB', AdaBoostClassifier(random_state=seed)))
+models.append(('NB', GaussianNB()))
+models.append(('LDA', LinearDiscriminantAnalysis()))
+models.append(('KNN', KNeighborsClassifier(n_neighbors=5)))
+models.append(('GB', GradientBoostingClassifier(random_state=seed)))
+
+results = []
+cv_res = []
+name_ML = []
+
+roc_results_table = []
+pre_recall_table = []
+
+for name, model in models:
+    model.fit(X_train_sm, y_train_sm)   
+    dirP = 'trained_model_weights/'
+    filename = f'{dirP}_{name}.sav'
+    pickle.dump(model, open(filename, 'wb'))
+    
+    pred_probs = model.predict_proba(X_val_sm)
+    preds = model.predict(X_val_sm)
+    
+    # Confusion Matrix
+    TN,FP,FN,TP = confusion_matrix(y_val_sm, preds).ravel()
+    
+    print(confusion_matrix(y_val_sm, preds))
+    
+    # Cohen Kappa score
+    c_score = cohen_kappa_score(y_val_sm,preds)
+    
+    # Recall / Sensitivity
+    SN = round(TP/(TP+FN),2)
+    # Specificity
+    SP = round(TN/(TN+FP),2)
+    # Precision
+    PRE = round(TP/(TP+FP),2)
+    # Accuracy
+    ACC = round((TP+TN)/(TP+TN+FP+FN),2)
+    # F1 score
+    f1 = 2*(PRE * SN)/(PRE + SN)
+    
+    df_res = pd.DataFrame({'Classifier':[name], 'Sensitivity' : [SN], "Specificity" : [SP], "Cohen_Kappa_Score":[c_score], "Precision": [PRE], "f-1 score":[f1], "Accuracy" : [ACC]})
+    results.append(df_res)
+
+    # ROC curve
+    fpr, tpr, thresh = roc_curve(y_val_sm, pred_probs[:,1], pos_label=1)
+    auc_score = roc_auc_score(y_val_sm, pred_probs[:,1])
+    
+    result_table = pd.DataFrame({"Classifier":[name], 'fpr':[fpr], 'tpr':[tpr],'auc':[auc_score]})
+    roc_results_table.append(result_table)
+    
+    # Precision recall curve
+    P, R, _ = precision_recall_curve(y_val_sm, pred_probs[:,1], pos_label=1)
+    auc_pre = auc(R, P)
+    table_pre_recal = pd.DataFrame({"Classifier":[name], 'Precision':[P], 'Recall':[R],'auc':[auc_pre]})
+    pre_recall_table.append(table_pre_recal)
+
+    # K fold cross validation
+    kfold = model_selection.KFold(n_splits=10, shuffle=True,random_state=0)
+    cv_results = model_selection.cross_val_score(model, X_sm, y_sm, cv=kfold, scoring="accuracy")
+    cv_res.append(cv_results)
+    name_ML.append(name)
+    
+result_table = pd.concat(roc_results_table,ignore_index=True)
+result_table.set_index('Classifier', inplace=True)
+
+pre_table = pd.concat(pre_recall_table,ignore_index=True)
+pre_table.set_index('Classifier', inplace=True)
+
+pd.concat(results,ignore_index=True)
+    
+#### Plot ROC curve ####
+
+fig = plt.figure(figsize=(8,6))
+for i in result_table.index:
+    plt.plot(result_table.loc[i]['fpr'], 
+             result_table.loc[i]['tpr'], 
+             label="{}, AUC={:.3f}".format(i, result_table.loc[i]['auc']))    
+plt.plot([0,1], [0,1], color='blue', linestyle='--')
+plt.xticks(np.arange(0.0, 1.1, step=0.1))
+plt.xlabel("False Positive Rate", fontsize=15)
+plt.yticks(np.arange(0.0, 1.1, step=0.1))
+plt.ylabel("True Positive Rate", fontsize=15)
+plt.legend(prop={'size':11}, loc='lower right')
+plt.show()
+    
+
+#### Plot Precision recall curve ####
+
+fig = plt.figure(figsize=(8,6))
+for i in pre_table.index:
+    plt.plot(pre_table.loc[i]['Recall'], 
+             pre_table.loc[i]['Precision'],
+             label="{}, AUC={:.3f}".format(i, pre_table.loc[i]['auc']))
+plt.xticks(np.arange(0.0, 1.1, step=0.2))
+plt.xlabel("Recall", fontsize=15)
+plt.yticks(np.arange(0.0, 1.1, step=0.2))
+plt.ylabel("Precision", fontsize=15)
+plt.legend(prop={'size':9}, loc='lower left')
+plt.show()
+
+
+#### Calculate Feature Importance: Gini importance ####
+from sklearn.inspection import permutation_importance
+import numpy as np
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+first_model_names = ['Logistic Regression', 'Random Forest', 'SVM',
+                    'Decision Tree', 
+                    'AdaBoost', 'NB', 'LDA', 'K-Neighbors','GradientBoosting']
+
+feature_names = df.columns[0:36]
+feat_imp_df = pd.DataFrame(columns=first_model_names, index=feature_names)
+
+# Dropping the Models that don't have feature importances for this analysis
+feat_imp_df.drop(['K-Neighbors','SVM','NB'], axis=1, inplace=True)
+
+feat_imp_df['Logistic Regression'] = np.abs(LogisticRegression(random_state=seed).fit(X_train_sm,y_train_sm).coef_.ravel())
+feat_imp_df['Random Forest'] = RandomForestClassifier(random_state=seed).fit(X_train_sm,y_train_sm).feature_importances_
+feat_imp_df['Decision Tree'] = DecisionTreeClassifier(random_state=seed).fit(X_train_sm,y_train_sm).feature_importances_
+feat_imp_df['AdaBoost'] = AdaBoostClassifier(random_state=seed).fit(X_train_sm,y_train_sm).feature_importances_
+feat_imp_df['LDA'] = np.abs(LinearDiscriminantAnalysis().fit(X_train_sm,y_train_sm).coef_.ravel())
+feat_imp_df['GradientBoosting'] = GradientBoostingClassifier(random_state=seed).fit(X_train_sm,y_train_sm).feature_importances_
+
+
+#### Calculate Feature Importance: Permutation importance ####
+
+svc = svm.SVC(probability=True, random_state=seed)
+svc.fit(X_train_sm,y_train_sm)
+feature_names = df.columns[0:36] # the numbers of the columns vary depending on the list of features you are working on. Provide the number of features or length of features
+features = np.array(feature_names)
+perm_importance = permutation_importance(svc, X_train_sm, y_train_sm)
+sorted_idx = perm_importance.importances_mean.argsort()
+feat_imp_df['SVM'] = sorted_idx ## Appending feature importances to existing dataframe
+
+nb = GaussianNB()
+nb.fit(X_train_sm,y_train_sm)
+feature_names = df.columns[0:36] # the numbers of the columns vary depending on the list of features you are working on. Provide the number of features or length of features
+features = np.array(feature_names)
+perm_importance = permutation_importance(nb, X_train_sm, y_train_sm)
+sorted_idx = perm_importance.importances_mean.argsort()
+feat_imp_df['NB'] = sorted_idx ## Appending feature importances to existing dataframe
+
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train_sm,y_train_sm)
+feature_names = df.columns[0:36] # the numbers of the columns vary depending on the list of features you are working on. Provide the number of features or length of features
+features = np.array(feature_names)
+perm_importance = permutation_importance(knn, X_train_sm, y_train_sm)
+sorted_idx = perm_importance.importances_mean.argsort()
+feat_imp_df['KNN'] = sorted_idx ## Appending feature importances to existing dataframe
+
+
+from sklearn.preprocessing import MinMaxScaler
+mms = MinMaxScaler()
+
+scaled_fi = pd.DataFrame(data=mms.fit_transform(feat_imp_df),
+                         columns=feat_imp_df.columns,
+                         index=feat_imp_df.index)
+scaled_fi['Overall'] = scaled_fi.sum(axis=1)
+scaled_fi.to_csv()
