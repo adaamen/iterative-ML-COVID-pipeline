@@ -3,7 +3,7 @@
 ![image](https://user-images.githubusercontent.com/126176409/220999959-96991bab-a42e-4932-b422-02dcf797a5fa.png)
 
 
-                                          Iterative Machine Learning (ML) Pipeline
+                                         Iterative Machine Learning (ML) Pipeline
 
 GSVA enrichment scores for 40 gene modules from publicly available whole blood bulk RNA-seq datasets were used as input for 9 ML algorithms in each of 4 binary classifications. The pipeline consisted of 3 ML iterations each of which was repeated 10 times. After the first 2 ML iterations, the top 50% of features from the top 5 performing algorithms were used as input for the next iteration. Then, the top 10 gene modules were filtered to remove re-dundant genes with correlation coefficients > 0.8 and log2 gene expression values from the remaining genes were normalized across datasets. Normalized z-scores of gene expres-sion values were used as input for the final ML iteration to select the top 20 gene features for each classifier. Detailed methods for each step in the pipeline are described below. 
 
