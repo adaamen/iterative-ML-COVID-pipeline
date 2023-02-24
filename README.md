@@ -1,5 +1,4 @@
 # iterative-ML-COVID-pipeline
-The following pipeline was implemented for classification of COVID-19 patients in the article: Daamen et al. Classification of COVID-19 Patients into Clinically Relevant Subsets by a Novel Machine Learning Pipeline Using Transcriptomic Features. IJMS (In review)
 
 ![image](https://user-images.githubusercontent.com/126176409/220999959-96991bab-a42e-4932-b422-02dcf797a5fa.png)
 
