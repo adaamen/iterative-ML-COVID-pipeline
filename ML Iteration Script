@@ -137,12 +137,6 @@ for name, model in models:
     auc_pre = auc(R, P)
     table_pre_recal = pd.DataFrame({"Classifier":[name], 'Precision':[P], 'Recall':[R],'auc':[auc_pre]})
     pre_recall_table.append(table_pre_recal)
-
-    # K fold cross validation
-    kfold = model_selection.KFold(n_splits=10, shuffle=True,random_state=0)
-    cv_results = model_selection.cross_val_score(model, X_sm, y_sm, cv=kfold, scoring="accuracy")
-    cv_res.append(cv_results)
-    name_ML.append(name)
     
 result_table = pd.concat(roc_results_table,ignore_index=True)
 result_table.set_index('Classifier', inplace=True)
